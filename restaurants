@@ -1,0 +1,438 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4fd2c0dc-fbda-4edc-a777-2b637aac4c65",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Importing the required Libraries\n",
+    "import pandas as pd\n",
+    "import sqlite3"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "fb5a6c2f-3e71-4677-9cec-c70a3c38784d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Load orders.csv\n",
+    "orders_df = pd.read_csv(r\"C:\\Users\\SANTHOSH\\Downloads\\orders.csv\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "afe58977-7054-46b7-86f5-cdfa8bd422b6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Load users.json\n",
+    "users_df = pd.read_json(r\"C:\\Users\\SANTHOSH\\Downloads\\users.json\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ad3a8c19-86b4-4ec4-8058-d2c7f656898a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Load restaurants.sql\n",
+    "conn = sqlite3.connect(\"restaurants.db\")\n",
+    "\n",
+    "with open(r\"C:\\Users\\SANTHOSH\\Downloads\\restaurants.sql\", \"r\") as file:\n",
+    "    sql_script = file.read()\n",
+    "conn.executescript(sql_script)\n",
+    "restaurants_df = pd.read_sql(\n",
+    "    \"SELECT * FROM restaurants\", conn\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "79a32f0a-670a-4688-a136-c8b94fbfc020",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Merge the Data(left joins)\n",
+    "orders_users_df = pd.merge(\n",
+    "    orders_df,\n",
+    "    users_df,\n",
+    "    on = \"user_id\",\n",
+    "    how = \"left\"\n",
+    ")\n",
+    "final_df = pd.merge(\n",
+    "    orders_users_df,\n",
+    "    restaurants_df,\n",
+    "    on = \"restaurant_id\",\n",
+    "    how = \"left\"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e2faa90c-5700-4bfb-9069-8bbee3c85daf",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Save Dataset\n",
+    "final_df.to_csv(\"final_food_delivery_dataset.csv\", index = False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3a07e418-c649-4875-ae90-58d111f2a35b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Which city has the highest total revenue (total_amount) from Gold members?  \n",
+    "gold_df = final_df[final_df[\"membership\"] == \"Gold\"]\n",
+    "city_gold_revenue = (\n",
+    "    gold_df\n",
+    "    .groupby(\"city\")[\"total_amount\"]\n",
+    "    .sum()\n",
+    "    .reset_index()\n",
+    "    .sort_values(by = \"total_amount\", ascending = False)\n",
+    ")\n",
+    "top_city = city_gold_revenue.iloc[0]\n",
+    "print(\"City with highest total revenue from gold members: \", top_city[\"city\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8845164e-4e96-4fc4-b9f2-d534f4dd8870",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Which cuisine has the highest average order value across all orders?\n",
+    "cuisine_avg_order = (\n",
+    "    final_df.groupby(\"cuisine\")[\"total_amount\"]\n",
+    "    .mean()\n",
+    "    .reset_index()\n",
+    "    .sort_values(by = \"total_amount\", ascending = False)\n",
+    ")\n",
+    "top_cuisine = cuisine_avg_order.iloc[0]\n",
+    "print(\"Cuisine with highest average order value: \", top_cuisine[\"cuisine\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d59fe4ab-9446-447d-b0a9-5f03142d25fd",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# How many distinct users placed orders worth more than ₹1000 in total (sum of all their orders)?\n",
+    "user_total_orders = (\n",
+    "    final_df.groupby(\"user_id\")[\"total_amount\"]\n",
+    "    .sum()\n",
+    "    .reset_index()\n",
+    ")\n",
+    "distinct_users_count = user_total_orders[user_total_orders[\"total_amount\"] > 1000][\"user_id\"].nunique()\n",
+    "print(\"Number of distinct users are: \", distinct_users_count)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7b57461f-4417-46b1-9337-dd7702cde0bd",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Which restaurant rating range generated the highest total revenue?\n",
+    "rating_bins = [3.0, 3.5, 4.0, 4.5, 5.0]\n",
+    "rating_labels = [\"3.0-3.5\", \"3.6-4.0\", \"4.1-4.5\", \"4.6-5.0\"]\n",
+    "final_df[\"rating_range\"] = pd.cut(\n",
+    "    final_df[\"rating\"],\n",
+    "    bins = rating_bins,\n",
+    "    labels = rating_labels,\n",
+    "    include_lowest = True\n",
+    ")\n",
+    "rating_revenue = (\n",
+    "    final_df.groupby(\"rating_range\")[\"total_amount\"]\n",
+    "    .sum()\n",
+    "    .reset_index()\n",
+    "    .sort_values(by = \"total_amount\", ascending = False)\n",
+    ")\n",
+    "top_range = rating_revenue.iloc[0]\n",
+    "print(\"Restaurant rating range that generated highest revenue is: \", top_range[\"rating_range\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f7f19a69-ed66-403c-84f8-b2d3b9eb0cd4",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Among Gold members, which city has the highest average order value?\n",
+    "city_avg_order = (\n",
+    "    gold_df.groupby(\"city\")[\"total_amount\"]\n",
+    "    .mean()\n",
+    "    .reset_index()\n",
+    "    .sort_values(by = \"total_amount\", ascending = False)\n",
+    ")\n",
+    "top_city = city_avg_order.iloc[0]\n",
+    "print(\"City with highest average order value by gold members: \", top_city[\"city\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8a3d28b6-9d71-4900-a2e5-88b9c535f51f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Which cuisine has the lowest number of distinct restaurants but still contributes significant revenue?\n",
+    "cuisine_stats = (\n",
+    "    final_df.groupby(\"cuisine\")\n",
+    "    .agg(\n",
+    "        distinct_restaurants=(\"restaurant_id\", \"nunique\"),\n",
+    "        total_revenue=(\"total_amount\", \"sum\")\n",
+    "    )\n",
+    "    .reset_index()\n",
+    ")\n",
+    "\n",
+    "# Sort by fewest restaurants first, then highest revenue\n",
+    "cuisine_stats_sorted = cuisine_stats.sort_values(\n",
+    "    by=[\"distinct_restaurants\", \"total_revenue\"],\n",
+    "    ascending=[True, False]\n",
+    ")\n",
+    "\n",
+    "# Top cuisine based on the condition\n",
+    "top_cuisine = cuisine_stats_sorted.iloc[0]\n",
+    "\n",
+    "print(\"Cuisine with lowest number of distinct restaurants but still contributes significant revenue: \",top_cuisine[\"cuisine\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "22281e72-31bd-4aff-b2c5-77deb3aebf42",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# What percentage of total orders were placed by Gold members? (Rounded to nearest integer)\n",
+    "total_orders = len(final_df)\n",
+    "gold_orders = len(final_df[final_df[\"membership\"] == \"Gold\"])\n",
+    "\n",
+    "percentage_gold_orders = round((gold_orders / total_orders) * 100)\n",
+    "\n",
+    "print(\"Percentage of total orders placed by gold members: \",percentage_gold_orders)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5da80e74-dacf-4263-8ed0-17d3ffd0b422",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Which restaurant has the highest average order value but less than 20 total orders?\n",
+    "restaurant_stats = (\n",
+    "    final_df.groupby(\"restaurant_name_x\")\n",
+    "    .agg(\n",
+    "        total_orders=(\"order_id\", \"count\"),\n",
+    "        avg_order_value=(\"total_amount\", \"mean\")\n",
+    "    )\n",
+    "    .reset_index()\n",
+    ")\n",
+    "\n",
+    "filtered_restaurants = restaurant_stats[restaurant_stats[\"total_orders\"] < 20]\n",
+    "\n",
+    "top_restaurant = filtered_restaurants.sort_values(\n",
+    "    by=\"avg_order_value\", ascending=False\n",
+    ").iloc[0]\n",
+    "\n",
+    "print(\"Restaurant with highest average order value but less than 20 total orders: \",top_restaurant[\"restaurant_name_x\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a9753546-ec2f-4776-ac40-e152baccc7a4",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Which combination contributes the highest revenue?\n",
+    "combo_revenue = (\n",
+    "    final_df.groupby([\"membership\", \"cuisine\"])[\"total_amount\"]\n",
+    "    .sum()\n",
+    "    .reset_index()\n",
+    ")\n",
+    "\n",
+    "filtered_combos = combo_revenue[\n",
+    "    (\n",
+    "        (combo_revenue[\"membership\"] == \"Gold\") & (combo_revenue[\"cuisine\"] == \"Indian\")\n",
+    "    ) |\n",
+    "    (\n",
+    "        (combo_revenue[\"membership\"] == \"Gold\") & (combo_revenue[\"cuisine\"] == \"Italian\")\n",
+    "    ) |\n",
+    "    (\n",
+    "        (combo_revenue[\"membership\"] == \"Regular\") & (combo_revenue[\"cuisine\"] == \"Indian\")\n",
+    "    ) |\n",
+    "    (\n",
+    "        (combo_revenue[\"membership\"] == \"Regular\") & (combo_revenue[\"cuisine\"] == \"Chinese\")\n",
+    "    )\n",
+    "]\n",
+    "\n",
+    "top_combo = filtered_combos.sort_values(\n",
+    "    by=\"total_amount\", ascending=False\n",
+    ").iloc[0]\n",
+    "\n",
+    "print(top_combo[\"membership\"], \"+\", top_combo[\"cuisine\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "9e273aa1-8c1d-4890-bdd5-954f63ab9e90",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# During which quarter of the year is the total revenue highest?\n",
+    "final_df[\"order_date\"] = pd.to_datetime(final_df[\"order_date\"])\n",
+    "\n",
+    "final_df[\"quarter\"] = final_df[\"order_date\"].dt.to_period(\"Q\")\n",
+    "\n",
+    "quarter_revenue = (\n",
+    "    final_df.groupby(\"quarter\")[\"total_amount\"]\n",
+    "    .sum()\n",
+    "    .reset_index()\n",
+    "    .sort_values(by=\"total_amount\", ascending=False)\n",
+    ")\n",
+    "\n",
+    "top_quarter = quarter_revenue.iloc[0]\n",
+    "\n",
+    "print(top_quarter[\"quarter\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f073d526-d9ff-4a23-8207-87cb77ba20e9",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# How many total orders were placed by users with Gold membership?\n",
+    "gold_orders_count = final_df[final_df[\"membership\"] == \"Gold\"].shape[0]\n",
+    "\n",
+    "print(gold_orders_count)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5f0ffedc-e5f4-4f7d-84e7-03ded1310497",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# What is the total revenue (rounded to nearest integer) generated from orders placed in Hyderabad city?\n",
+    "hyderabad_revenue = final_df[final_df[\"city\"] == \"Hyderabad\"][\"total_amount\"].sum()\n",
+    "\n",
+    "print(round(hyderabad_revenue))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c03cc4a5-50f7-4f6f-a50d-0f9c73f563fb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# How many distinct users placed at least one order?\n",
+    "distinct_users = final_df[\"user_id\"].nunique()\n",
+    "\n",
+    "print(distinct_users)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4e10379a-3e65-4b38-87a9-ec5d02e3281b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# What is the average order value (rounded to 2 decimals) for Gold members?\n",
+    "avg_order_value_gold = final_df[final_df[\"membership\"] == \"Gold\"][\"total_amount\"].mean()\n",
+    "\n",
+    "print(round(avg_order_value_gold, 2))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "86c651a8-9457-4c90-93e3-d94c47b8f208",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# How many orders were placed for restaurants with rating ≥ 4.5?\n",
+    "high_rating_orders = final_df[final_df[\"rating\"] >= 4.5].shape[0]\n",
+    "\n",
+    "print(high_rating_orders)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7687a201-2c0a-453d-b3c6-5afaf96cd8cc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# How many orders were placed in the top revenue city among Gold members only?\n",
+    "top_city = city_gold_revenue.iloc[0][\"city\"]\n",
+    "\n",
+    "orders_count = gold_df[gold_df[\"city\"] == top_city].shape[0]\n",
+    "\n",
+    "print(orders_count)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8d298a3d-a957-4c83-bc98-3315ac41cab8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "print(len(final_df))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "84c55eef-ee57-4306-9d26-017153ab9b70",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python [conda env:base] *",
+   "language": "python",
+   "name": "conda-base-py"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.13.9"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
